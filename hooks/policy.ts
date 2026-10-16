@@ -27,9 +27,9 @@ export function capAtHigh(effort: Effort | number | undefined): Effort | undefin
   return effort
 }
 
-// A `[1m]` or other suffix does not match, so it counts as not allowed.
+// An optional provider prefix (`cc/`) is fine; a `[1m]` or other suffix counts as not allowed.
 export const isAllowedSessionModel = (id: string): boolean =>
-  /^(?:claude-)?(haiku|sonnet|opus)(?:-[\w.-]*)?$/i.test(id)
+  /^(?:[\w.-]+\/)?(?:claude-)?(haiku|sonnet|opus)(?:-[\w.-]*)?$/i.test(id)
 
 export function guardFallback(
   sessionModel: string,

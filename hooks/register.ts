@@ -54,20 +54,29 @@ export const register: Register = on => {
     current = await decide({
       interactive: INTERACTIVE.includes(e.origin.kind),
       classify: async () => {
-        const r = await $.model.complete({ model: 'haiku', effort: 'low', prompt: classifierPrompt(e.text), timeoutMs: 15000 })
-        return r.isAnswered ? parseChoice(r.text) : null
+        // The engine rejects a request it refuses to send: that is a failure too.
+        try {
+          const r = await $.model.complete({ model: 'haiku', effort: 'low', prompt: classifierPrompt(e.text), timeoutMs: 15000 })
+          return r.isAnswered ? parseChoice(r.text) : null
+        } catch {
+          return null
+        }
       },
       ask: (question, options, header) => $.ui.ask(question, { options, header }),
     })
     $.ui.status(current === 'keep' ? 'auto: not switched' : statusFor(current))
-    return next(e)
+    const result = await next(e)
+    // A dropped prompt starts no turn, so nothing would clear its decision.
+    if (result.drop !== undefined) current = null
+    return result
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId !== undefined || current === null) return yield* next(e)
-    if (current !== 'keep') return yield* next({ ...e, model: current.model, effort: current.effort })
+    if (e.agentId !== undefined) return yield* next(e)
+    if (current !== null && current !== 'keep') return yield* next({ ...e, model: current.model, effort: current.effort })
+    if (current === null && (await read($, paused))) return yield* next(e)
 
-    // Credit guard: "not switched" must still never run on a model off the allowlist.
+    // Credit guard: while on, an unswitched turn still never runs off the allowlist.
     const guard = guardFallback(e.model, e.effort)
     if (!guard) return yield* next(e)
     $.ui.status(`auto: sonnet · ${guard.effort ?? 'default'}`)

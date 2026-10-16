@@ -5,10 +5,11 @@ import type { Engine } from 'claude-code/testing'
 const USAGE = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
 
 // Hooks beneath the mod stand in for the engine; they record what reaches them.
-function engine(on: On, classifier: string | null) {
+function engine(on: On, classifier: string | null | Error, opts: { drop?: boolean } = {}) {
   const seen = { classified: 0, steps: [] as { model: string; effort: unknown }[], status: [] as unknown[] }
   on('model.complete', () => {
     seen.classified++
+    if (classifier instanceof Error) throw classifier
     return {
       value: classifier === null
         ? { isAnswered: false, reason: 'api-error', status: 500, error: 'server_error', usage: USAGE }
@@ -21,7 +22,7 @@ function engine(on: On, classifier: string | null) {
   })
   on('command.register', ($, e) => ({ value: { command: e.name } }) as never)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('prompt.submit', ($, e) => (opts.drop ? { drop: 'not now' } : { text: e.text }) as never)
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('turn.step', async function* ($, e) {
@@ -123,4 +124,28 @@ test('bare command reports state', async ($, on) => {
   await command($, 'off')
   expect((await command($, '')).text).toBe('agent-switcher is paused in this session.')
   expect((await command($, 'sideways')).text).toBe('Usage: /agent-switcher [on|off]')
+})
+
+test('unclassified turn on a Fable session is still guarded', async ($, on) => {
+  const seen = engine(on, '{"model":"opus","effort":"medium"}')
+  await start($)
+  await prompt($, { command: { name: 'review' } })
+  await step($, 'claude-fable-5-1', 'max')
+  expect(seen.steps).toEqual([{ model: 'sonnet', effort: 'high' }])
+})
+
+test('classifier rejection fails closed', async ($, on) => {
+  const seen = engine(on, new Error('blocked model'))
+  await start($)
+  await prompt($)
+  await step($, 'claude-fable-5-1', 'max')
+  expect(seen.steps).toEqual([{ model: 'sonnet', effort: 'high' }])
+})
+
+test('a dropped prompt leaves no decision behind', async ($, on) => {
+  const seen = engine(on, '{"model":"opus","effort":"max"}', { drop: true })
+  await start($)
+  await prompt($)
+  await step($, 'claude-sonnet-5-5', 'high')
+  expect(seen.steps).toEqual([{ model: 'claude-sonnet-5-5', effort: 'high' }])
 })

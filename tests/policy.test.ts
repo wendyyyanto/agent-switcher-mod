@@ -49,3 +49,8 @@ test('guardFallback', () => {
 test('statusFor', () => {
   expect(statusFor({ model: 'sonnet', effort: 'medium' })).toBe('auto: sonnet · medium')
 })
+
+test('guardFallback understands provider-prefixed ids', () => {
+  expect(guardFallback('cc/claude-opus-5-5', 'max')).toBe(null)
+  expect(guardFallback('cc/claude-fable-5-1', 'low')).toEqual({ model: 'sonnet', effort: 'low' })
+})
