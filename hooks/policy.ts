@@ -6,6 +6,13 @@ export type Choice = { model: Model; effort: Effort }
 export const MODELS: readonly Model[] = ['haiku', 'sonnet', 'opus']
 export const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
+// How each model is named on the wire: the local gateway's ids.
+export const MODEL_IDS: Record<Model, string> = {
+  haiku: 'cc/claude-haiku-5-5',
+  sonnet: 'cc/claude-sonnet-5-5',
+  opus: 'cc/claude-opus-5-5',
+}
+
 export function parseChoice(text: string): Choice | null {
   const json = text.match(/\{[\s\S]*?\}/)?.[0]
   if (!json) return null

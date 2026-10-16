@@ -6,9 +6,10 @@ const USAGE = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 
 
 // Hooks beneath the mod stand in for the engine; they record what reaches them.
 function engine(on: On, classifier: string | null | Error, opts: { drop?: boolean } = {}) {
-  const seen = { classified: 0, steps: [] as { model: string; effort: unknown }[], status: [] as unknown[] }
-  on('model.complete', () => {
+  const seen = { models: [] as string[], classified: 0, steps: [] as { model: string; effort: unknown }[], status: [] as unknown[] }
+  on('model.complete', ($, e) => {
     seen.classified++
+    seen.models.push(e.model)
     if (classifier instanceof Error) throw classifier
     return {
       value: classifier === null
@@ -47,7 +48,7 @@ test('classified choice reaches main-loop steps', async ($, on) => {
   await start($)
   await prompt($)
   await step($, 'claude-sonnet-5-5', 'high')
-  expect(seen.steps).toEqual([{ model: 'opus', effort: 'medium' }])
+  expect(seen.steps).toEqual([{ model: 'cc/claude-opus-5-5', effort: 'medium' }])
 })
 
 test('subagent steps are untouched', async ($, on) => {
@@ -97,7 +98,7 @@ test('classifier failure under sdk keeps, guard catches fable', async ($, on) =>
   await start($)
   await prompt($)
   await step($, 'claude-fable-5-1', 'max')
-  expect(seen.steps).toEqual([{ model: 'sonnet', effort: 'high' }])
+  expect(seen.steps).toEqual([{ model: 'cc/claude-sonnet-5-5', effort: 'high' }])
 })
 
 test('classifier failure keeps an allowed session model', async ($, on) => {
@@ -131,7 +132,7 @@ test('unclassified turn on a Fable session is still guarded', async ($, on) => {
   await start($)
   await prompt($, { command: { name: 'review' } })
   await step($, 'claude-fable-5-1', 'max')
-  expect(seen.steps).toEqual([{ model: 'sonnet', effort: 'high' }])
+  expect(seen.steps).toEqual([{ model: 'cc/claude-sonnet-5-5', effort: 'high' }])
 })
 
 test('classifier rejection fails closed', async ($, on) => {
@@ -139,7 +140,7 @@ test('classifier rejection fails closed', async ($, on) => {
   await start($)
   await prompt($)
   await step($, 'claude-fable-5-1', 'max')
-  expect(seen.steps).toEqual([{ model: 'sonnet', effort: 'high' }])
+  expect(seen.steps).toEqual([{ model: 'cc/claude-sonnet-5-5', effort: 'high' }])
 })
 
 test('a dropped prompt leaves no decision behind', async ($, on) => {
@@ -148,4 +149,11 @@ test('a dropped prompt leaves no decision behind', async ($, on) => {
   await prompt($)
   await step($, 'claude-sonnet-5-5', 'high')
   expect(seen.steps).toEqual([{ model: 'claude-sonnet-5-5', effort: 'high' }])
+})
+
+test('the classifier is asked through the gateway id', async ($, on) => {
+  const seen = engine(on, null)
+  await start($)
+  await prompt($)
+  expect(seen.models).toEqual(['cc/claude-haiku-5-5'])
 })
