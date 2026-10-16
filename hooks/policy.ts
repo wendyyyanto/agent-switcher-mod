@@ -6,12 +6,16 @@ export type Choice = { model: Model; effort: Effort }
 export const MODELS: readonly Model[] = ['haiku', 'sonnet', 'opus']
 export const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
-// How each model is named on the wire: the local gateway's ids.
 export const MODEL_IDS: Record<Model, string> = {
-  haiku: 'cc/claude-haiku-5-5',
-  sonnet: 'cc/claude-sonnet-5-5',
-  opus: 'cc/claude-opus-5-5',
+  haiku: 'claude-haiku-5-5',
+  sonnet: 'claude-sonnet-5-5',
+  opus: 'claude-opus-5-5',
 }
+
+// Names the model the way the session does: through the gateway (`cc/claude-opus-5-5`)
+// it keeps the `cc/` prefix, on the Anthropic API it sends the plain id.
+export const wireId = (model: Model, sessionModel: string): string =>
+  (sessionModel.match(/^[\w.-]+\//)?.[0] ?? '') + MODEL_IDS[model]
 
 export function parseChoice(text: string): Choice | null {
   const json = text.match(/\{[\s\S]*?\}/)?.[0]

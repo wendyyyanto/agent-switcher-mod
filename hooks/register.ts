@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import { decide } from './flow'
-import { classifierPrompt, guardFallback, MODEL_IDS, parseChoice, statusFor, type Choice } from './policy'
+import { classifierPrompt, guardFallback, parseChoice, statusFor, wireId, type Choice } from './policy'
 
 const paused = atom({ plugin: 'agent-switcher-mod', key: 'paused' } as const, false)
 
@@ -56,7 +56,7 @@ export const register: Register = on => {
       classify: async () => {
         // The engine rejects a request it refuses to send: that is a failure too.
         try {
-          const r = await $.model.complete({ model: MODEL_IDS.haiku, effort: 'low', prompt: classifierPrompt(e.text), timeoutMs: 15000 })
+          const r = await $.model.complete({ model: wireId('haiku', await $.session.model()), effort: 'low', prompt: classifierPrompt(e.text), timeoutMs: 15000 })
           return r.isAnswered ? parseChoice(r.text) : null
         } catch {
           return null
@@ -73,13 +73,13 @@ export const register: Register = on => {
 
   on('turn.step', async function* ($, e, next) {
     if (e.agentId !== undefined) return yield* next(e)
-    if (current !== null && current !== 'keep') return yield* next({ ...e, model: MODEL_IDS[current.model], effort: current.effort })
+    if (current !== null && current !== 'keep') return yield* next({ ...e, model: wireId(current.model, e.model), effort: current.effort })
     if (current === null && (await read($, paused))) return yield* next(e)
 
     // Credit guard: while on, an unswitched turn still never runs off the allowlist.
     const guard = guardFallback(e.model, e.effort)
     if (!guard) return yield* next(e)
     $.ui.status(`auto: sonnet · ${guard.effort ?? 'default'}`)
-    return yield* next({ ...e, model: MODEL_IDS[guard.model], ...(guard.effort ? { effort: guard.effort } : {}) })
+    return yield* next({ ...e, model: wireId(guard.model, e.model), ...(guard.effort ? { effort: guard.effort } : {}) })
   })
 }

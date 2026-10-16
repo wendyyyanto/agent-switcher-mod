@@ -6,6 +6,7 @@ import {
   isAboveHigh,
   parseChoice,
   statusFor,
+  wireId,
   type Effort,
 } from '../hooks/policy'
 
@@ -53,4 +54,10 @@ test('statusFor', () => {
 test('guardFallback understands provider-prefixed ids', () => {
   expect(guardFallback('cc/claude-opus-5-5', 'max')).toBe(null)
   expect(guardFallback('cc/claude-fable-5-1', 'low')).toEqual({ model: 'sonnet', effort: 'low' })
+})
+
+test('wireId copies the session provider prefix', () => {
+  expect(wireId('opus', 'claude-sonnet-5-5')).toBe('claude-opus-5-5')
+  expect(wireId('haiku', 'cc/claude-opus-5-5')).toBe('cc/claude-haiku-5-5')
+  expect(wireId('sonnet', 'sonnet')).toBe('claude-sonnet-5-5')
 })

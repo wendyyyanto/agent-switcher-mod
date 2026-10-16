@@ -5,7 +5,7 @@ import type { Engine } from 'claude-code/testing'
 const USAGE = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
 
 // Hooks beneath the mod stand in for the engine; they record what reaches them.
-function engine(on: On, classifier: string | null | Error, opts: { drop?: boolean } = {}) {
+function engine(on: On, classifier: string | null | Error, opts: { drop?: boolean; sessionModel?: string } = {}) {
   const seen = { models: [] as string[], classified: 0, steps: [] as { model: string; effort: unknown }[], status: [] as unknown[] }
   on('model.complete', ($, e) => {
     seen.classified++
@@ -21,6 +21,7 @@ function engine(on: On, classifier: string | null | Error, opts: { drop?: boolea
     seen.status.push(e)
     return { value: undefined } as never
   })
+  on('session.model', () => ({ value: opts.sessionModel ?? 'claude-opus-5-5' }) as never)
   on('command.register', ($, e) => ({ value: { command: e.name } }) as never)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('prompt.submit', ($, e) => (opts.drop ? { drop: 'not now' } : { text: e.text }) as never)
@@ -48,7 +49,7 @@ test('classified choice reaches main-loop steps', async ($, on) => {
   await start($)
   await prompt($)
   await step($, 'claude-sonnet-5-5', 'high')
-  expect(seen.steps).toEqual([{ model: 'cc/claude-opus-5-5', effort: 'medium' }])
+  expect(seen.steps).toEqual([{ model: 'claude-opus-5-5', effort: 'medium' }])
 })
 
 test('subagent steps are untouched', async ($, on) => {
@@ -98,7 +99,7 @@ test('classifier failure under sdk keeps, guard catches fable', async ($, on) =>
   await start($)
   await prompt($)
   await step($, 'claude-fable-5-1', 'max')
-  expect(seen.steps).toEqual([{ model: 'cc/claude-sonnet-5-5', effort: 'high' }])
+  expect(seen.steps).toEqual([{ model: 'claude-sonnet-5-5', effort: 'high' }])
 })
 
 test('classifier failure keeps an allowed session model', async ($, on) => {
@@ -132,7 +133,7 @@ test('unclassified turn on a Fable session is still guarded', async ($, on) => {
   await start($)
   await prompt($, { command: { name: 'review' } })
   await step($, 'claude-fable-5-1', 'max')
-  expect(seen.steps).toEqual([{ model: 'cc/claude-sonnet-5-5', effort: 'high' }])
+  expect(seen.steps).toEqual([{ model: 'claude-sonnet-5-5', effort: 'high' }])
 })
 
 test('classifier rejection fails closed', async ($, on) => {
@@ -140,7 +141,7 @@ test('classifier rejection fails closed', async ($, on) => {
   await start($)
   await prompt($)
   await step($, 'claude-fable-5-1', 'max')
-  expect(seen.steps).toEqual([{ model: 'cc/claude-sonnet-5-5', effort: 'high' }])
+  expect(seen.steps).toEqual([{ model: 'claude-sonnet-5-5', effort: 'high' }])
 })
 
 test('a dropped prompt leaves no decision behind', async ($, on) => {
@@ -151,9 +152,30 @@ test('a dropped prompt leaves no decision behind', async ($, on) => {
   expect(seen.steps).toEqual([{ model: 'claude-sonnet-5-5', effort: 'high' }])
 })
 
-test('the classifier is asked through the gateway id', async ($, on) => {
+test('the classifier follows the session provider', async ($, on) => {
   const seen = engine(on, null)
   await start($)
   await prompt($)
+  expect(seen.models).toEqual(['claude-haiku-5-5'])
+})
+
+test('the classifier keeps a gateway prefix', async ($, on) => {
+  const seen = engine(on, null, { sessionModel: 'cc/claude-opus-5-5' })
+  await start($)
+  await prompt($)
   expect(seen.models).toEqual(['cc/claude-haiku-5-5'])
+})
+
+test('switched and guarded steps keep a gateway prefix', async ($, on) => {
+  const seen = engine(on, '{"model":"haiku","effort":"low"}')
+  await start($)
+  await prompt($)
+  await step($, 'cc/claude-opus-5-5', 'high')
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await prompt($, { command: { name: 'review' } })
+  await step($, 'cc/claude-fable-5-1', 'max')
+  expect(seen.steps).toEqual([
+    { model: 'cc/claude-haiku-5-5', effort: 'low' },
+    { model: 'cc/claude-sonnet-5-5', effort: 'high' },
+  ])
 })
