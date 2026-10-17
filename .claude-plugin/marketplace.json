@@ -1,0 +1,5 @@
+{
+  "name": "agent-switcher-mod",
+  "owner": { "name": "wendyyyanto" },
+  "plugins": [{ "name": "agent-switcher-mod", "source": "./" }]
+}
