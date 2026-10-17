@@ -6,10 +6,11 @@ const USAGE = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 
 
 // Hooks beneath the mod stand in for the engine; they record what reaches them.
 function engine(on: On, classifier: string | null | Error, opts: { drop?: boolean; sessionModel?: string } = {}) {
-  const seen = { models: [] as string[], classified: 0, steps: [] as { model: string; effort: unknown }[], status: [] as unknown[] }
+  const seen = { models: [] as string[], timeouts: [] as unknown[], classified: 0, steps: [] as { model: string; effort: unknown }[], status: [] as unknown[] }
   on('model.complete', ($, e) => {
     seen.classified++
     seen.models.push(e.model)
+    seen.timeouts.push(e.timeoutMs)
     if (classifier instanceof Error) throw classifier
     return {
       value: classifier === null
@@ -178,4 +179,11 @@ test('switched and guarded steps keep a gateway prefix', async ($, on) => {
     { model: 'cc/claude-haiku-5-5', effort: 'low' },
     { model: 'cc/claude-sonnet-5-5', effort: 'high' },
   ])
+})
+
+test('the classifier gives up after 5s', async ($, on) => {
+  const seen = engine(on, null)
+  await start($)
+  await prompt($)
+  expect(seen.timeouts).toEqual([5000])
 })

@@ -56,7 +56,7 @@ export const register: Register = on => {
       classify: async () => {
         // The engine rejects a request it refuses to send: that is a failure too.
         try {
-          const r = await $.model.complete({ model: wireId('haiku', await $.session.model()), effort: 'low', prompt: classifierPrompt(e.text), timeoutMs: 15000 })
+          const r = await $.model.complete({ model: wireId('haiku', await $.session.model()), effort: 'low', prompt: classifierPrompt(e.text), timeoutMs: 5000 })
           return r.isAnswered ? parseChoice(r.text) : null
         } catch {
           return null
