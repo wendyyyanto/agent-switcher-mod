@@ -1,6 +1,6 @@
 {
 	"name": "agent-switcher-mod",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Picks the model and effort for each prompt, never above High without asking",
 	"types": "./types/index.d.ts"
 }
